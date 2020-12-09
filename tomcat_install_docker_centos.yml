@@ -1,0 +1,56 @@
+#!/usr/bin/ansible-playbook
+ - name: Playbook to install docker
+   hosts: localhost
+   become: yes
+   gather_facts: true
+   tasks:
+    - name: Updating repos in RedHat
+      yum:
+       name: "*"
+       state: latest
+    - name: Install required system packages
+      yum:
+       name: "{{item}}"
+       state: latest
+      loop:
+       - yum-utils
+       - curl
+       - python*
+       - java-1.8.0-openjdk
+    - name: Add docker to yum repository
+      get_url:
+       url: https://download.docker.com/linux/centos/docker-ce.repo
+       dest: /etc/yum.repos.d/docer-ce.repo
+    - name: Installing Docker
+      yum:
+       name: docker
+       state: present
+    - name: starting and enabling docker service
+      service:
+       name: docker
+       state: started
+       enabled: yes
+    - name: Capturing details
+      shell: "docker --version"
+      register: docker_details
+    - set_fact:
+       docker_info: "{{docker_details.stdout}}"
+    - name: Displaying Installed version
+      debug:
+       msg: var= docker_info
+        - Installed "{{docker_info}}"
+    - name: Copy tomcat Dockerfile to remote node
+      copy:
+       src: tomcat_dockerfile
+       dest: /opt/
+    - name: building tomcat docker image
+      shell: "cd /opt/tomcat_dockerfile;docker build -t 'tomcat_img:1.0' ."
+    - name: Removing existed tomcat_container
+      shell: "docker rm -f tomcat_container"
+      ignore_errors: yes
+    - name: launching tomcat container
+      shell: "docker run -itd --name tomcat_container -p 5000:8080 tomcat_img:1.0"
+    - name: credentials available at /usr/local/tomcat/conf/tomcat-users.xml file
+      debug:
+       msg:
+        - Tomcat application- {{inventory_hostname}}:5000 - username:tomcat and password:Tomcat
